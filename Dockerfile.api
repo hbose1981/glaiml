@@ -1,0 +1,15 @@
+# AIOps API Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy entire context (includes aiops package)
+COPY . /app
+
+ENV AIOPS_API_HOST=0.0.0.0
+ENV AIOPS_API_PORT=8000
+
+EXPOSE 8000
+CMD ["python", "-m", "aiops.api.main"]

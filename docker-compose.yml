@@ -1,0 +1,30 @@
+services:
+  mock_snow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock_snow
+    container_name: aiops-mock-snow
+    ports:
+      - "8001:8001"
+
+  aiops_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: aiops-api
+    environment:
+      - AIOPS_API_HOST=0.0.0.0
+      - AIOPS_API_PORT=8000
+      - SNOW_INSTANCE=http://mock_snow:8001
+      - PROM_BASE_URL=http://host.docker.internal:9090
+      - PG_HOST=host.docker.internal
+      - PG_PORT=5432
+      - PG_DB=embeddings
+      - PG_USER=postgres
+      - PG_PASS=postgres
+      - PG_RAG_TABLE=web_embeddings
+      - EMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mock_snow

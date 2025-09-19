@@ -1,0 +1,79 @@
+AIOps PoC - Session Notes (2025-09-20)
+
+Summary
+- Codebase: c:\Users\hrhkh\CascadeProjects\aiops
+- Purpose: Minimal AIOps scaffold with FastAPI /alert webhook, Prometheus query, pgvector RAG, and mock ServiceNow.
+
+What is running now
+- Mock ServiceNow (FastAPI): http://localhost:8001
+  - Process: started via `python -m mock_snow.main`
+  - Incidents (latest check): ["INC1001", "INC1002"]
+- AIOps API (FastAPI): http://localhost:8000
+  - Process: started via `python -m aiops.api.main`
+  - Health: GET /health -> {"status":"ok"}
+- Prometheus (Docker): http://localhost:9090
+  - Container name: aiops-prom
+  - Config file: prometheus/prometheus.yml
+  - Status: Ready (self-scraping + node job)
+- Node Exporter (Docker): http://localhost:9100/metrics
+  - Existing container: name appears as `node-exporter` (already running and bound to 9100)
+
+Key code changes today
+1) aiops/integrations/servicenow.py
+   - Fixed SyntaxError by ensuring `from __future__ import annotations` is placed immediately after the module docstring.
+2) aiops/agents/triage.py
+   - Implemented lazy initialization for RagClient to avoid model download at API startup.
+   - RAG is instantiated on first use; if it fails, triage continues and notes that RAG was disabled/not initialized.
+3) Prometheus setup
+   - Created `prometheus/prometheus.yml` with self-scrape and node job targets:
+     - prometheus -> localhost:9090
+     - node -> host.docker.internal:9100, localhost:9100
+   - Started Prometheus container `aiops-prom` and verified readiness.
+   - Node exporter observed running on port 9100; Prometheus target should be UP.
+
+Verified flows
+- Sent Alertmanager-style payload to POST /alert with a 120s client timeout.
+  - Response: 200 {"ok": true, "incident_id": "ba99e42664a0"}
+  - Mock ServiceNow incidents incremented: ["INC1001","INC1002"].
+
+How to resume tomorrow
+1) Optional: stop residual background processes/containers
+   - Docker: `docker ps`
+     - If needed: `docker restart aiops-prom`
+   - Node exporter container is already running (name: node-exporter). If not: start it:
+     - `docker run --name aiops-node -d -p 9100:9100 prom/node-exporter:latest` (skip if 9100 already bound)
+
+2) Start services locally (Python)
+   - Mock ServiceNow: `python -m mock_snow.main`
+   - AIOps API: `python -m aiops.api.main`
+   - Health checks:
+     - `curl http://localhost:8001/incidents`
+     - `curl http://localhost:8000/health`
+
+3) Start/verify Prometheus (Docker)
+   - Start (if not running):
+     - `docker run --name aiops-prom -d -p 9090:9090 -v ${PWD}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml prom/prometheus:latest --config.file=/etc/prometheus/prometheus.yml`
+   - Readiness: `curl http://localhost:9090/-/ready`
+   - UI: http://localhost:9090
+   - Targets: Status -> Targets should show `prometheus` and `node` jobs UP
+
+4) Send a test alert
+   - Using Python + httpx with higher timeout:
+     - `python -c "import httpx,json; payload={'version':'4','groupKey':'example-group','status':'firing','receiver':'aiops-webhook','groupLabels':{'alertname':'HighCPU'},'commonLabels':{'severity':'warning','service':'node','instance':'vm-001:9100','job':'node'},'commonAnnotations':{'summary':'CPU usage high'},'externalURL':'http://alertmanager.local','alerts':[{'status':'firing','labels':{'alertname':'HighCPU','severity':'warning','service':'node','instance':'vm-001:9100','job':'node'},'annotations':{'summary':'CPU load above threshold'},'startsAt':'2025-01-01T00:00:00Z','endsAt':'','generatorURL':'http://prometheus.local'}]}; r=httpx.post('http://localhost:8000/alert', json=payload, timeout=120); print(r.status_code); print(r.text)"`
+   - This will align `job: node` so triage Prometheus query `up{job=\"node\"}` returns data.
+
+Environment/Defaults
+- Settings in aiops/config.py
+  - AIOPS_API_HOST=0.0.0.0, AIOPS_API_PORT=8000
+  - PROM_BASE_URL=http://localhost:9090
+  - PG_HOST=host.docker.internal (for docker-compose), default fallback localhost
+  - PG_DB=embeddings, PG_USER=postgres, PG_PASS=postgres, PG_RAG_TABLE=web_embeddings
+  - EMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
+  - SNOW_INSTANCE=http://localhost:8001
+
+Potential next improvements
+- Add env toggle to disable RAG (e.g., AIOPS_DISABLE_RAG=true) for faster triage in demos.
+- Add RCA agent or remediation planner.
+- Format ServiceNow notes for better readability.
+
+End of notes.
