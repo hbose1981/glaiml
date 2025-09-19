@@ -76,4 +76,33 @@ Potential next improvements
 - Add RCA agent or remediation planner.
 - Format ServiceNow notes for better readability.
 
+---
+Last assistant recap (to resume quickly)
+- Mock ServiceNow and AIOps API are running locally.
+- Prometheus and node_exporter are running via Docker and scraping successfully.
+- RAG is lazy-loaded, with a toggle AIOPS_DISABLE_RAG.
+- Docs updated: README.md, PROJECT_CHECKLIST.md, SESSION_NOTES_2025-09-20.txt.
+- GitHub issues created: Completed (#1–#8 closed), Pending (#9–#14 open).
+
+How to resume
+- Mock ServiceNow: `python -m mock_snow.main`
+- AIOps API: `python -m aiops.api.main`
+- Prometheus: `docker start aiops-prom` (if not running)
+- node_exporter: `docker start node-exporter` (if not running)
+- Send test alert (aligned to job=node): see README Local Demo section
+
+Overnight task template (fill and send to assistant)
+- Goal:
+- Inputs/URLs/Secrets:
+- Env toggles: AIOPS_DISABLE_RAG=true/false
+- Steps:
+  - [ ]
+  - [ ]
+- Deliverables:
+  - [ ] Code paths changed
+  - [ ] README/docs updates
+  - [ ] Tests
+  - [ ] Demo script
+- Constraints: timeouts, dependencies
+
 End of notes.
